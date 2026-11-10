@@ -53,6 +53,7 @@ Actualizar los scripts mas adelante: `C:\Terminus\operador\Actualizar-Operador.p
 | `Preparar-Operador.ps1` | Instalacion del PC (se puede repetir). |
 | `Tunnel-Open.ps1` / `Tunnel-Close.ps1` | Abren y cierran el tunel (los llama mRemoteNG). |
 | `Connect-Cliente.ps1` | Tunel + RDP sin mRemoteNG. |
+| `Habilitar-Acceso.ps1` | Tras instalar un cliente: activa su acceso SSH en Azure (una vez por equipo). |
 | `Configurar-mRemoteNG.ps1` | Crea las herramientas externas Terminus-Abrir / Terminus-Cerrar. |
 | `Actualizar-Operador.ps1` | Baja la ultima version de los scripts (no toca configuracion ni clave). |
 | `Comun.ps1` | Configuracion comun; lee `Operador.config.local.ps1`. |
