@@ -145,9 +145,11 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "  Ejecutar: az login --tenant $($Op.Tenant)   y elegir la cuenta de la empresa" -ForegroundColor Yellow
 } else {
     Write-Host "  Sesion: $(az account show --query user.name -o tsv)" -ForegroundColor Green
-    # Solo la ultima linea y solo si es un numero (az.cmd a veces mete texto delante).
-    $n = "$(az resource list --resource-group $Op.ResourceGroup --resource-type "Microsoft.HybridCompute/machines" --query "length(@)" -o tsv 2>$null | Select-Object -Last 1)".Trim()
-    if ($n -match '^\d+$' -and [int]$n -gt 0) { Write-Host "  Ve $n equipo(s)." -ForegroundColor Green }
+    # Lista de nombres y se cuentan aqui (pasar "length(@)" por az.cmd falla).
+    $nombres = @(az resource list --subscription $Op.SubscriptionId --resource-group $Op.ResourceGroup `
+                 --resource-type "Microsoft.HybridCompute/machines" --query "[].name" -o tsv 2>$null |
+                 Where-Object { $_ -match '^[A-Za-z0-9._-]+$' })
+    if ($nombres.Count -gt 0) { Write-Host "  Ve $($nombres.Count) equipo(s): $($nombres -join ', ')" -ForegroundColor Green }
     else { Write-Host "  No ve equipos: revisar que esta en el grupo de operadores (puede tardar unos minutos)." -ForegroundColor Yellow }
 }
 
