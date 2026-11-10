@@ -12,32 +12,28 @@ Este repositorio es generico: no contiene datos de ningun entorno ni claves. Los
 
 ## Instalacion (5 minutos)
 
-Abrir **PowerShell como Administrador** con el usuario de Windows del propio operador.
+1. Cerrar mRemoteNG.
+2. Abrir **PowerShell como Administrador** con el usuario de Windows del propio operador.
+3. Pegar la **linea de instalacion de operador** que entrega el administrador (la guarda en su gestor de contrasenas) y pulsar Intro.
 
-**1. Descargar los scripts** en `C:\Terminus\operador`:
+Esa linea descarga este repositorio en `C:\Terminus\operador`, escribe `Operador.config.local.ps1` (suscripcion, tenant y clave privada, codificados en base64 dentro de la propia linea) y lanza `Preparar-Operador.ps1`, que hace el resto: Azure CLI + extension ssh, permisos de la carpeta, guarda la clave solo para este usuario (y la borra de la configuracion y del historial de PowerShell), crea las herramientas externas de mRemoteNG e inicia sesion en Azure.
 
-```powershell
-[Net.ServicePointManager]::SecurityProtocol=3072; $ProgressPreference='SilentlyContinue'; iwr https://github.com/asariol/terminus_operador/archive/refs/heads/main.zip -OutFile $env:TEMP\to.zip -UseBasicParsing; Expand-Archive $env:TEMP\to.zip $env:TEMP\to -Force; New-Item C:\Terminus\operador -ItemType Directory -Force | Out-Null; Copy-Item $env:TEMP\to\terminus_operador-main\* C:\Terminus\operador -Force; Remove-Item $env:TEMP\to, $env:TEMP\to.zip -Recurse -Force
-```
-
-**2. Pegar el bloque de configuracion** que entrega el administrador (por ejemplo un *Send* de Bitwarden de un solo uso). Tiene esta forma:
+Formato de `Operador.config.local.ps1` (por si se crea a mano):
 
 ```powershell
-@'
 $OperadorLocal = @{
-    SubscriptionId = "<guid de la suscripcion>"
-    Tenant         = "<dominio del tenant>"
-    UsuarioDefecto = "<usuario del tunel si el equipo no tiene etiqueta>"
-    ClavePrivada   = @"
+    SubscriptionId = '<guid de la suscripcion>'
+    Tenant         = '<dominio del tenant>'
+    UsuarioDefecto = '<usuario del tunel si el equipo no tiene etiqueta>'
+    ClavePrivada   = @'
 -----BEGIN OPENSSH PRIVATE KEY-----
 ...
 -----END OPENSSH PRIVATE KEY-----
-"@
+'@
 }
-'@ | Set-Content C:\Terminus\operador\Operador.config.local.ps1 -Encoding ASCII; powershell -NoProfile -ExecutionPolicy Bypass -File C:\Terminus\operador\Preparar-Operador.ps1
 ```
 
-`Preparar-Operador.ps1` hace el resto: Azure CLI + extension ssh, permisos de la carpeta, guarda la clave solo para este usuario (y la borra de la configuracion y del historial de PowerShell), crea las herramientas externas de mRemoteNG e inicia sesion en Azure.
+Actualizar los scripts mas adelante: `C:\Terminus\operador\Actualizar-Operador.ps1`.
 
 ## Uso diario
 

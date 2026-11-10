@@ -116,7 +116,8 @@ if ($texto) {
     if (Test-Path $hist) {
         $trozos = @($limpia -split "`n" | Where-Object { $_.Length -ge 20 })
         $h = Get-Content $hist
-        $resto = $h | Where-Object { $l = $_.Trim(); -not ($l -match 'PRIVATE KEY' -or $trozos -contains $l) }
+        # Tambien la linea de instalacion ($OperadorBloque='<base64>'), que lleva la clave codificada.
+        $resto = $h | Where-Object { $l = $_.Trim(); -not ($l -match 'PRIVATE KEY|OperadorBloque' -or $trozos -contains $l) }
         if (@($resto).Count -ne @($h).Count) { $resto | Set-Content $hist -Encoding UTF8; Write-Host "  Clave eliminada del historial de PowerShell." -ForegroundColor Green }
     }
     $texto = $null; $limpia = $null
