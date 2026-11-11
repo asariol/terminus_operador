@@ -32,8 +32,8 @@ param(
     [string]$ResourceGroup  = "",
     [string]$SubscriptionId = "",
     [string]$Tenant         = "",
-    [int]   $TimeoutSeg     = 40,      # un tunel normal tarda 5-10 s
-    [int]   $AvisoSeg       = 20       # el aviso se cierra solo (mRemoteNG espera a este script)
+    [int]   $TimeoutSeg     = 30,      # un tunel normal tarda 5-10 s
+    [int]   $AvisoSeg       = 30       # el aviso se cierra solo
 )
 
 . (Join-Path $PSScriptRoot "Comun.ps1")
@@ -48,7 +48,11 @@ Function Log { param([string]$t) try { "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 # mRemoteNG espera a que este script termine y un aviso escondido lo dejaria colgado.
 Function Mostrar {
     param([string]$t)
-    try { (New-Object -ComObject WScript.Shell).Popup($t, $AvisoSeg, "Terminus", 0x30 + 0x40000) | Out-Null } catch { }
+    # En un proceso aparte: este script acaba ya y mRemoteNG no espera al aviso.
+    $txt = $t -replace "'", "''"
+    $ps  = "(New-Object -ComObject WScript.Shell).Popup('$txt', $AvisoSeg, 'Terminus', 0x30 + 0x40000) | Out-Null"
+    try { Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoProfile", "-EncodedCommand",
+          ([Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($ps))) } catch { }
 }
 Function Aviso {
     param([string]$t)
@@ -61,7 +65,11 @@ Function Fallo {
     param([string]$t)
     Log "ERROR: $t. Ver tunnel_ssh_$Port.log"
     $motivo = ""
-    if (Test-Path $LogSsh) { $motivo = (Get-Content $LogSsh | Where-Object { $_ -cmatch '^ERROR:|denied|not found|refused|IDENTIFICATION' } | Select-Object -Last 1) }
+    if (Test-Path $LogSsh) {
+        $lineas = @(Get-Content $LogSsh -ErrorAction SilentlyContinue)
+        $motivo = $lineas | Where-Object { $_ -cmatch '^ERROR:|denied|not found|refused|IDENTIFICATION' } | Select-Object -Last 1
+        if (-not $motivo -and ($lineas -match 'password:')) { $motivo = "El servidor no acepta la clave (pide contrasena). Avisar al administrador." }
+    }
     Mostrar "No se pudo abrir el tunel a $Machine.`n`n$motivo`n`nDetalle: $LogSsh"
     exit 1
 }
@@ -138,6 +146,11 @@ while (((Get-Date) - $inicio).TotalSeconds -lt $TimeoutSeg) {
         Log "Tunel listo en $([int]((Get-Date) - $inicio).TotalSeconds) s"; exit 0
     }
     if ($p.HasExited) { Fallo "el proceso del tunel se ha cerrado (codigo $($p.ExitCode))" }
+    # Fallos que no cierran el proceso: pide contrasena (clave rechazada), error de az...
+    if ((Test-Path $LogSsh) -and (Select-String -Path $LogSsh -Pattern "password:|Permission denied|^ERROR:|IDENTIFICATION HAS CHANGED" -CaseSensitive -Quiet -ErrorAction SilentlyContinue)) {
+        taskkill /T /F /PID $p.Id 1>$null 2>$null
+        Fallo "el tunel ha fallado"
+    }
     Start-Sleep -Milliseconds 500
 }
 taskkill /T /F /PID $p.Id 1>$null 2>$null
