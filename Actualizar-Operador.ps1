@@ -27,5 +27,7 @@ try {
     foreach ($f in $nuevos) { Copy-Item $f.FullName $PSScriptRoot -Force }
     Write-Host "Actualizados $($nuevos.Count) ficheros en $PSScriptRoot" -ForegroundColor Green
 } finally {
-    Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    # TEMP puede venir en formato corto (C:\Users\RAL~1 con usuarios con tilde):
+    # Remove-Item no lo acepta; .NET si.
+    try { [IO.Directory]::Delete($tmp, $true) } catch { }
 }
