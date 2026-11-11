@@ -141,6 +141,16 @@ if ($texto) {
 Paso "5/6 mRemoteNG"
 & (Join-Path $PSScriptRoot "Configurar-mRemoteNG.ps1")
 
+# Acceso directo "Terminus - Iniciar dia" en el escritorio de este usuario
+$lnk = Join-Path ([Environment]::GetFolderPath("Desktop")) "Terminus - Iniciar dia.lnk"
+$sc = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
+$sc.TargetPath       = "powershell.exe"
+$sc.Arguments        = "-NoProfile -ExecutionPolicy Bypass -File `"$Dir\Iniciar-Dia.ps1`""
+$sc.WorkingDirectory = $Dir
+$sc.IconLocation     = "mstsc.exe,0"
+$sc.Save()
+Write-Host "  Acceso directo en el escritorio: Terminus - Iniciar dia" -ForegroundColor Green
+
 # ------------------------------------------------------------------
 # BLOQUE 6 - Sesion y prueba
 # ------------------------------------------------------------------

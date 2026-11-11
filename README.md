@@ -37,7 +37,7 @@ Actualizar los scripts mas adelante: `C:\Terminus\operador\Actualizar-Operador.p
 
 ## Uso diario
 
-- Cada manana: `az login --tenant <tenant>` (MFA).
+- Cada manana: acceso directo **Terminus - Iniciar dia** (login + tuneles abiertos a la vez), o `az login --tenant <tenant>`.
 - En mRemoteNG, cada conexion de cliente:
   - **Host**: `127.0.0.1`
   - **Puerto**: el del cliente (uno distinto por cliente)
@@ -52,6 +52,7 @@ Actualizar los scripts mas adelante: `C:\Terminus\operador\Actualizar-Operador.p
 |---|---|
 | `Preparar-Operador.ps1` | Instalacion del PC (se puede repetir). |
 | `Tunnel-Open.ps1` / `Tunnel-Close.ps1` | Abren y cierran el tunel (los llama mRemoteNG). |
+| `Iniciar-Dia.ps1` | Inicio del dia: login y los tuneles de los clientes elegidos abiertos a la vez (acceso directo en el escritorio). |
 | `Connect-Cliente.ps1` | Tunel + RDP sin mRemoteNG. |
 | `Habilitar-Acceso.ps1` | Tras instalar un cliente: activa su acceso SSH en Azure (una vez por equipo). |
 | `Configurar-mRemoteNG.ps1` | Crea las herramientas externas Terminus-Abrir / Terminus-Cerrar. |

@@ -28,81 +28,111 @@ param(
     [Parameter(Mandatory)][string]$Machine,         # nombre del equipo en Arc
     [Parameter(Mandatory)][int]   $Port,            # puerto local (unico por cliente)
     [string]$KeyFile        = "",
-    [string]$Usuario        = "",                   # vacio = etiqueta UsuarioTunel
+    [string]$Usuario        = "",                   # vacio = cache / etiqueta UsuarioTunel
     [string]$ResourceGroup  = "",
     [string]$SubscriptionId = "",
     [string]$Tenant         = "",
     [int]   $TimeoutSeg     = 30,      # un tunel normal tarda 5-10 s
-    [int]   $AvisoSeg       = 30       # el aviso se cierra solo
+    [int]   $AvisoSeg       = 30,      # el aviso de error se cierra solo
+    [switch]$SinAvisos                 # sin ventanas (Iniciar-Dia muestra su propia tabla)
 )
 
 . (Join-Path $PSScriptRoot "Comun.ps1")
 if (-not $ResourceGroup)  { $ResourceGroup  = $Op.ResourceGroup }
 if (-not $SubscriptionId) { $SubscriptionId = $Op.SubscriptionId }
 if (-not $Tenant)         { $Tenant         = $Op.Tenant }
+$LogSsh = Join-Path $PSScriptRoot "tunnel_ssh_${Machine}_$Port.log"
 
-# Registro de cada intento
+# ------------------------------------------------------------------
+# BLOQUE 0 - Registro, ventanas y salida
+# ------------------------------------------------------------------
 $Log = Join-Path $PSScriptRoot "tunnel.log"
 Function Log { param([string]$t) try { "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [${Machine}:${Port}] $t" | Out-File -Append $Log -Encoding UTF8 } catch { } }
-# Aviso por encima de todo (mRemoteNG queda delante) y que se cierra solo:
-# mRemoteNG espera a que este script termine y un aviso escondido lo dejaria colgado.
+
+# Lanza un trozo de PowerShell en un proceso aparte, oculto (ventanas que no
+# deben bloquear a mRemoteNG, que espera a que este script termine).
+Function Lanzar {
+    param([string]$Codigo)
+    try {
+        Start-Process powershell -PassThru -WindowStyle Hidden -ArgumentList "-NoProfile", "-EncodedCommand",
+            ([Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($Codigo)))
+    } catch { $null }
+}
+
+# Ventanita "Abriendo tunel a X... N s", encima de todo, abajo a la derecha.
+$script:Ventana = $null
+if (-not $SinAvisos) {
+    $script:Ventana = Lanzar @"
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+`$f = New-Object Windows.Forms.Form
+`$f.Text = 'Terminus'; `$f.TopMost = `$true; `$f.ShowInTaskbar = `$false
+`$f.FormBorderStyle = 'FixedToolWindow'; `$f.StartPosition = 'Manual'; `$f.Size = New-Object Drawing.Size(360, 90)
+`$wa = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+`$f.Location = New-Object Drawing.Point((`$wa.Right - 370), (`$wa.Bottom - 100))
+`$l = New-Object Windows.Forms.Label; `$l.Dock = 'Fill'; `$l.TextAlign = 'MiddleCenter'
+`$l.Font = New-Object Drawing.Font('Segoe UI', 10); `$f.Controls.Add(`$l)
+`$t0 = Get-Date
+`$l.Text = "Abriendo tunel a $Machine (puerto $Port)``n0 s"
+`$tm = New-Object Windows.Forms.Timer; `$tm.Interval = 500
+`$tm.Add_Tick({ `$l.Text = "Abriendo tunel a $Machine (puerto $Port)``n" + [int]((Get-Date) - `$t0).TotalSeconds + ' s'; if (((Get-Date) - `$t0).TotalSeconds -gt 60) { `$f.Close() } })
+`$tm.Start(); [void]`$f.ShowDialog()
+"@
+}
+
+Function Salir {
+    param([int]$Codigo)
+    if ($script:Ventana) { try { Stop-Process -Id $script:Ventana.Id -Force -ErrorAction SilentlyContinue } catch { } }
+    exit $Codigo
+}
 Function Mostrar {
     param([string]$t)
-    # En un proceso aparte: este script acaba ya y mRemoteNG no espera al aviso.
+    if ($SinAvisos) { return }
     $txt = $t -replace "'", "''"
-    $ps  = "(New-Object -ComObject WScript.Shell).Popup('$txt', $AvisoSeg, 'Terminus', 0x30 + 0x40000) | Out-Null"
-    try { Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoProfile", "-EncodedCommand",
-          ([Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($ps))) } catch { }
+    $null = Lanzar "(New-Object -ComObject WScript.Shell).Popup('$txt', $AvisoSeg, 'Terminus', 0x30 + 0x40000) | Out-Null"
 }
 Function Aviso {
     param([string]$t)
     Log "ERROR: $t"
     Mostrar $t
-    exit 1
+    Salir 1
 }
-# Error del tunel: motivo = ultima linea con ERROR del log de ssh
 Function Fallo {
     param([string]$t)
     Log "ERROR: $t. Ver $(Split-Path $LogSsh -Leaf)"
-    $motivo = ""
-    if (Test-Path $LogSsh) {
-        $lineas = @(Get-Content $LogSsh -ErrorAction SilentlyContinue)
-        $motivo = $lineas | Where-Object { $_ -cmatch '^ERROR:|denied|not found|refused|IDENTIFICATION' } | Select-Object -Last 1
-        if (-not $motivo -and ($lineas -match 'password:')) { $motivo = "El servidor no acepta la clave (pide contrasena). Avisar al administrador." }
-    }
+    $motivo = Get-MotivoFallo $LogSsh
+    # Clave rechazada: puede que el usuario guardado ya no sea el bueno
+    if ($motivo -match "clave|denied") { Set-UsuarioCache $Machine "" }
     Mostrar "No se pudo abrir el tunel a $Machine.`n`n$motivo`n`nDetalle: $LogSsh"
-    exit 1
+    Salir 1
 }
 Log "Inicio (usuario $env:USERNAME, PowerShell $($PSVersionTable.PSVersion))"
 
 # ------------------------------------------------------------------
-# BLOQUE 1 - Comprobaciones
+# BLOQUE 1 - Comprobaciones (locales, sin llamar a Azure: rapido)
 # ------------------------------------------------------------------
 # El nombre llega de mRemoteNG (%USERFIELD%) y acaba dentro de una orden.
 if (-not (Test-NombreSeguro $Machine)) { Aviso "Nombre de equipo no valido: '$Machine'. Revisa el campo de usuario de la conexion en mRemoteNG." }
 if (-not $SubscriptionId) { Aviso "Falta SubscriptionId en Operador.config.local.ps1." }
+if (-not (Get-Command az -ErrorAction SilentlyContinue)) { Aviso "No se encuentra Azure CLI (az). Cierra y vuelve a abrir mRemoteNG." }
 
 # Ya hay tunel en ese puerto? Entonces nada que hacer
-if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) { Log "Ya habia tunel en el puerto"; exit 0 }
+if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) { Log "Ya habia tunel en el puerto"; Salir 0 }
 
 if (-not $KeyFile -and (Test-Path $Op.Clave)) { $KeyFile = $Op.Clave }
 
 # ------------------------------------------------------------------
-# BLOQUE 2 - Sesion de Azure (si no hay, avisar y salir)
+# BLOQUE 2 - Usuario del tunel (cache local; Azure solo la primera vez)
 # ------------------------------------------------------------------
-# Se comprueba la suscripcion configurada (no la que este por defecto).
-if (-not (Get-Command az -ErrorAction SilentlyContinue)) { Aviso "No se encuentra Azure CLI (az). Cierra y vuelve a abrir mRemoteNG." }
-$resp = (az account show --subscription $SubscriptionId --query user.name -o tsv 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0) { Log "Sesion: $resp"; Aviso "No hay sesion de Azure.`nAbre PowerShell y ejecuta:`n`naz login --tenant $Tenant" }
-Log "Sesion: $resp"
-
-# Usuario del tunel: cada cliente puede tener uno distinto (etiqueta en Azure)
+# La sesion de Azure no se comprueba aparte: si no hay, el tunel falla
+# enseguida y el aviso lo dice (ahorra 2-3 s por conexion).
+if (-not $Usuario) { $Usuario = Get-UsuarioCache $Machine }
 if (-not $Usuario) {
     $Usuario = (az resource show --subscription $SubscriptionId --resource-group $ResourceGroup --name $Machine `
                 --resource-type "Microsoft.HybridCompute/machines" --query "tags.UsuarioTunel" -o tsv 2>$null | Out-String).Trim()
     if (-not $Usuario) { $Usuario = $Op.UsuarioDefecto }
+    if ($Usuario -and (Test-UsuarioSeguro $Usuario)) { Set-UsuarioCache $Machine $Usuario }
 }
-if (-not $Usuario) { Aviso "El equipo $Machine no tiene etiqueta UsuarioTunel y no hay UsuarioDefecto configurado." }
+if (-not $Usuario) { Aviso "El equipo $Machine no tiene etiqueta UsuarioTunel y no hay UsuarioDefecto configurado (o no hay sesion de Azure: az login --tenant $Tenant)." }
 if (-not (Test-UsuarioSeguro $Usuario)) { Aviso "Usuario del tunel no valido: '$Usuario'." }
 Log "Usuario del tunel: $Usuario"
 
@@ -127,9 +157,9 @@ Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction Silen
     Where-Object { $_.CommandLine -like "*Tunel * ($Port)'*" } |
     ForEach-Object { taskkill /T /F /PID $_.ProcessId 1>$null 2>$null; Log "Cerrado intento anterior (PID $($_.ProcessId))" }
 
-# Con clave (oculto) la salida va a tunnel_ssh_<Equipo>_<Port>.log: si falla, ahi esta
-# el motivo. Un log por puerto: varios tuneles a la vez no chocan.
-$LogSsh = Join-Path $PSScriptRoot "tunnel_ssh_${Machine}_$Port.log"
+# Con clave (oculto) la salida va al log de ssh: si falla, ahi esta el motivo.
+# El del intento anterior se borra: si no, un error viejo cortaria este.
+Remove-Item $LogSsh -Force -ErrorAction SilentlyContinue
 $redir  = if ($KeyFile) { " *> '$LogSsh'" } else { "" }
 $p = Start-Process powershell -PassThru -WindowStyle $estilo -ArgumentList @(
     "-NoProfile", "-Command",
@@ -138,12 +168,12 @@ $p = Start-Process powershell -PassThru -WindowStyle $estilo -ArgumentList @(
 Log "Proceso del tunel lanzado (PID $($p.Id))"
 
 # ------------------------------------------------------------------
-# BLOQUE 5 - Esperar a que el puerto escuche
+# BLOQUE 5 - Esperar a que el puerto escuche (o cortar al primer error)
 # ------------------------------------------------------------------
 $inicio = Get-Date
 while (((Get-Date) - $inicio).TotalSeconds -lt $TimeoutSeg) {
     if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) {
-        Log "Tunel listo en $([int]((Get-Date) - $inicio).TotalSeconds) s"; exit 0
+        Log "Tunel listo en $([int]((Get-Date) - $inicio).TotalSeconds) s"; Salir 0
     }
     if ($p.HasExited) { Fallo "el proceso del tunel se ha cerrado (codigo $($p.ExitCode))" }
     # Fallos que no cierran el proceso: pide contrasena (clave rechazada), error de az...
