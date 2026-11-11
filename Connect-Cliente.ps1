@@ -72,7 +72,7 @@ while (Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue) { $p
 # ------------------------------------------------------------------
 Write-Host "Abriendo tunel en el puerto $port..." -ForegroundColor Yellow
 & (Join-Path $PSScriptRoot "Tunnel-Open.ps1") -Machine $nombre -Port $port
-if ($LASTEXITCODE -ne 0) { throw "El tunel no se abrio. Ver tunnel.log y tunnel_ssh_$port.log en $PSScriptRoot" }
+if ($LASTEXITCODE -ne 0) { throw "El tunel no se abrio. Ver tunnel.log y tunnel_ssh_${nombre}_$port.log en $PSScriptRoot" }
 Write-Host "Tunel listo." -ForegroundColor Green
 
 # ------------------------------------------------------------------

@@ -20,7 +20,7 @@
 
  Registro (util cuando lo lanza mRemoteNG y no se ve nada):
    tunnel.log             cada intento, con el motivo si falla
-   tunnel_ssh_<Port>.log  salida del ultimo tunel en ese puerto
+   tunnel_ssh_<Equipo>_<Port>.log  salida del ultimo tunel a ese equipo
 =====================================================================
 #>
 
@@ -63,7 +63,7 @@ Function Aviso {
 # Error del tunel: motivo = ultima linea con ERROR del log de ssh
 Function Fallo {
     param([string]$t)
-    Log "ERROR: $t. Ver tunnel_ssh_$Port.log"
+    Log "ERROR: $t. Ver $(Split-Path $LogSsh -Leaf)"
     $motivo = ""
     if (Test-Path $LogSsh) {
         $lineas = @(Get-Content $LogSsh -ErrorAction SilentlyContinue)
@@ -127,9 +127,9 @@ Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction Silen
     Where-Object { $_.CommandLine -like "*Tunel * ($Port)'*" } |
     ForEach-Object { taskkill /T /F /PID $_.ProcessId 1>$null 2>$null; Log "Cerrado intento anterior (PID $($_.ProcessId))" }
 
-# Con clave (oculto) la salida va a tunnel_ssh_<Port>.log: si falla, ahi esta
+# Con clave (oculto) la salida va a tunnel_ssh_<Equipo>_<Port>.log: si falla, ahi esta
 # el motivo. Un log por puerto: varios tuneles a la vez no chocan.
-$LogSsh = Join-Path $PSScriptRoot "tunnel_ssh_$Port.log"
+$LogSsh = Join-Path $PSScriptRoot "tunnel_ssh_${Machine}_$Port.log"
 $redir  = if ($KeyFile) { " *> '$LogSsh'" } else { "" }
 $p = Start-Process powershell -PassThru -WindowStyle $estilo -ArgumentList @(
     "-NoProfile", "-Command",

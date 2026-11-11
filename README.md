@@ -63,7 +63,7 @@ Actualizar los scripts mas adelante: `C:\Terminus\operador\Actualizar-Operador.p
 En `C:\Terminus\operador`:
 
 - `tunnel.log`: cada intento de tunel, con el motivo si falla.
-- `tunnel_ssh_<puerto>.log`: salida del ultimo tunel en ese puerto.
+- `tunnel_ssh_<equipo>_<puerto>.log`: salida del ultimo tunel a ese equipo.
 
 Errores tipicos: *No hay sesion de Azure* (hacer `az login --tenant ...` con la cuenta de la empresa), *Permission denied* (clave o usuario del servidor), *not found* (el equipo no esta habilitado todavia).
 
