@@ -67,6 +67,14 @@ if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
 Paso "2/6 Extension ssh"
 az extension add --name ssh --upgrade --only-show-errors 1>$null 2>$null
 az config set extension.use_dynamic_install=yes_without_prompt --only-show-errors 1>$null 2>$null
+# Este script corre como Administrador: lo que az crea en el perfil puede
+# quedar con permisos de Administradores y luego, sin elevar (mRemoteNG),
+# az falla con "Acceso denegado" al cargar la extension. Se devuelve al usuario.
+$azDir = Join-Path $env:USERPROFILE ".azure"
+if (Test-Path $azDir) {
+    icacls $azDir /setowner "$env:USERDOMAIN\$env:USERNAME" /T /C /Q 1>$null 2>$null
+    icacls $azDir /reset /T /C /Q 1>$null 2>$null
+}
 Write-Host "  Extension ssh $(az extension show --name ssh --query version -o tsv 2>$null)" -ForegroundColor Green
 
 # ------------------------------------------------------------------
