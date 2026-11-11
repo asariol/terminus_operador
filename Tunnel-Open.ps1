@@ -32,7 +32,8 @@ param(
     [string]$ResourceGroup  = "",
     [string]$SubscriptionId = "",
     [string]$Tenant         = "",
-    [int]   $TimeoutSeg     = 90
+    [int]   $TimeoutSeg     = 40,      # un tunel normal tarda 5-10 s
+    [int]   $AvisoSeg       = 20       # el aviso se cierra solo (mRemoteNG espera a este script)
 )
 
 . (Join-Path $PSScriptRoot "Comun.ps1")
@@ -43,11 +44,25 @@ if (-not $Tenant)         { $Tenant         = $Op.Tenant }
 # Registro de cada intento
 $Log = Join-Path $PSScriptRoot "tunnel.log"
 Function Log { param([string]$t) try { "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [${Machine}:${Port}] $t" | Out-File -Append $Log -Encoding UTF8 } catch { } }
+# Aviso por encima de todo (mRemoteNG queda delante) y que se cierra solo:
+# mRemoteNG espera a que este script termine y un aviso escondido lo dejaria colgado.
+Function Mostrar {
+    param([string]$t)
+    try { (New-Object -ComObject WScript.Shell).Popup($t, $AvisoSeg, "Terminus", 0x30 + 0x40000) | Out-Null } catch { }
+}
 Function Aviso {
     param([string]$t)
     Log "ERROR: $t"
-    Add-Type -AssemblyName PresentationFramework
-    [System.Windows.MessageBox]::Show($t, "Terminus") | Out-Null
+    Mostrar $t
+    exit 1
+}
+# Error del tunel: motivo = ultima linea con ERROR del log de ssh
+Function Fallo {
+    param([string]$t)
+    Log "ERROR: $t. Ver tunnel_ssh_$Port.log"
+    $motivo = ""
+    if (Test-Path $LogSsh) { $motivo = (Get-Content $LogSsh | Where-Object { $_ -cmatch '^ERROR:|denied|not found|refused|IDENTIFICATION' } | Select-Object -Last 1) }
+    Mostrar "No se pudo abrir el tunel a $Machine.`n`n$motivo`n`nDetalle: $LogSsh"
     exit 1
 }
 Log "Inicio (usuario $env:USERNAME, PowerShell $($PSVersionTable.PSVersion))"
@@ -122,9 +137,8 @@ while (((Get-Date) - $inicio).TotalSeconds -lt $TimeoutSeg) {
     if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) {
         Log "Tunel listo en $([int]((Get-Date) - $inicio).TotalSeconds) s"; exit 0
     }
-    if ($p.HasExited) { Log "ERROR: el proceso del tunel se ha cerrado (codigo $($p.ExitCode)). Ver tunnel_ssh_$Port.log"; exit 1 }
+    if ($p.HasExited) { Fallo "el proceso del tunel se ha cerrado (codigo $($p.ExitCode))" }
     Start-Sleep -Milliseconds 500
 }
-Log "ERROR: el tunel no escucha tras $TimeoutSeg s. Ver tunnel_ssh_$Port.log"
 taskkill /T /F /PID $p.Id 1>$null 2>$null
-exit 1
+Fallo "el tunel no escucha tras $TimeoutSeg s"
