@@ -59,6 +59,9 @@ Function Lanzar {
     } catch { $null }
 }
 
+# Tunel ya abierto (p.ej. por Iniciar-Dia): salir enseguida, sin ventanas.
+if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) { Log "Ya habia tunel en el puerto"; exit 0 }
+
 # Ventanita "Abriendo tunel a X... N s", encima de todo, abajo a la derecha.
 $script:Ventana = $null
 if (-not $SinAvisos) {
