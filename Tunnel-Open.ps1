@@ -115,7 +115,7 @@ Log "Inicio (usuario $env:USERNAME, PowerShell $($PSVersionTable.PSVersion))"
 # ------------------------------------------------------------------
 # El nombre llega de mRemoteNG (%USERFIELD%) y acaba dentro de una orden.
 if (-not (Test-NombreSeguro $Machine)) { Aviso "Nombre de equipo no valido: '$Machine'. Revisa el campo de usuario de la conexion en mRemoteNG." }
-if (-not $SubscriptionId) { Aviso "Falta SubscriptionId en Operador.config.local.ps1." }
+if (-not $SubscriptionId) { Aviso "Falta SubscriptionId en Operador.config.local.psd1." }
 if (-not (Get-Command az -ErrorAction SilentlyContinue)) { Aviso "No se encuentra Azure CLI (az). Cierra y vuelve a abrir mRemoteNG." }
 
 # Ya hay tunel en ese puerto? Entonces nada que hacer
@@ -146,7 +146,7 @@ $orden = "az ssh arc --subscription $SubscriptionId --resource-group $ResourceGr
 if ($KeyFile) { $orden += " --private-key-file '$KeyFile'" }
 # accept-new: la primera vez acepta la clave del servidor (oculto no se
 # puede contestar yes/no); si despues cambia, ssh se niega a conectar.
-$orden += " -- -L ${Port}:localhost:3389 -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o StrictHostKeyChecking=accept-new"
+$orden += " -- -L 127.0.0.1:${Port}:localhost:3389 -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o StrictHostKeyChecking=accept-new"
 
 # ------------------------------------------------------------------
 # BLOQUE 4 - Lanzar el tunel en un proceso independiente

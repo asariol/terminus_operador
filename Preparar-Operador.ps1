@@ -13,7 +13,7 @@
    1. Instala Azure CLI si no esta (MSI oficial, firma verificada).
    2. Instala la extension "ssh" de Azure CLI.
    3. Carpeta de scripts solo para este usuario y Administradores.
-   4. Clave privada: la toma de Operador.config.local.ps1 (ClavePrivada)
+   4. Clave privada: la toma de Operador.config.local.psd1 (ClavePrivada)
       o de -ClavePrivada <fichero>, la guarda en terminus_ed25519 con
       permisos solo para este usuario y la borra de la configuracion y
       del historial de PowerShell.
@@ -39,7 +39,7 @@ $yo  = "$env:USERDOMAIN\$env:USERNAME"
 
 if ($Dir -match '\s') { Write-Host "La carpeta no puede tener espacios (mRemoteNG no admite comillas): $Dir" -ForegroundColor Red; exit 1 }
 if (-not $Op.SubscriptionId -or -not $Op.Tenant) {
-    Write-Host "Falta Operador.config.local.ps1 (SubscriptionId y Tenant). Pegar antes el bloque de Bitwarden." -ForegroundColor Red; exit 1
+    Write-Host "Falta Operador.config.local.psd1 (SubscriptionId y Tenant). Pegar antes la linea de instalacion de operador." -ForegroundColor Red; exit 1
 }
 
 # ------------------------------------------------------------------
@@ -111,13 +111,15 @@ if ($texto) {
     icacls $Op.Clave /grant:r "${yo}:R" 1>$null
     Write-Host "  Clave guardada en $($Op.Clave) (solo $yo)." -ForegroundColor Green
 
-    # Quitar la clave de la configuracion local (se reescribe sin ClavePrivada)
+    # Quitar la clave de la configuracion local: se reescribe como .psd1
+    # (solo datos) sin ClavePrivada, y se borra el .ps1 antiguo si existia.
     if ($OperadorLocal -and $OperadorLocal.ContainsKey("ClavePrivada")) {
         $lineas = foreach ($k in $OperadorLocal.Keys) {
             if ($k -ne "ClavePrivada") { "    $k = '$(([string]$OperadorLocal[$k]) -replace "'", "''")'" }
         }
-        Set-Content $OpConfigLocal ("`$OperadorLocal = @{`r`n" + ($lineas -join "`r`n") + "`r`n}") -Encoding ASCII
-        Write-Host "  Clave eliminada de Operador.config.local.ps1" -ForegroundColor Green
+        Set-Content $OpConfigLocal ("@{`r`n" + ($lineas -join "`r`n") + "`r`n}") -Encoding ASCII
+        if (Test-Path $OpConfigLocalAnt) { Remove-Item $OpConfigLocalAnt -Force }
+        Write-Host "  Clave eliminada de la configuracion local." -ForegroundColor Green
     }
     # Y del historial de PowerShell (al pegar el bloque de Bitwarden se guarda alli)
     $hist = "$env:APPDATA\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt"

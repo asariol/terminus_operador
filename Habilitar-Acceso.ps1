@@ -35,7 +35,7 @@ if (-not $ResourceGroup) { $ResourceGroup = $Op.ResourceGroup }
 # BLOQUE 1 - Sesion (la suscripcion configurada, no la de por defecto)
 # ------------------------------------------------------------------
 $sub = $Op.SubscriptionId
-if (-not $sub) { Write-Host "Falta SubscriptionId en Operador.config.local.ps1." -ForegroundColor Red; exit 1 }
+if (-not $sub) { Write-Host "Falta SubscriptionId en Operador.config.local.psd1." -ForegroundColor Red; exit 1 }
 az account show --subscription $sub --only-show-errors 1>$null 2>$null
 if ($LASTEXITCODE -ne 0) { az login --tenant $Op.Tenant --only-show-errors 1>$null }
 az account set --subscription $sub 2>$null

@@ -16,12 +16,12 @@ Este repositorio es generico: no contiene datos de ningun entorno ni claves. Los
 2. Abrir **PowerShell como Administrador** con el usuario de Windows del propio operador.
 3. Pegar la **linea de instalacion de operador** que entrega el administrador (la guarda en su gestor de contrasenas) y pulsar Intro.
 
-Esa linea descarga este repositorio en `C:\Terminus\operador`, escribe `Operador.config.local.ps1` (suscripcion, tenant y clave privada, codificados en base64 dentro de la propia linea) y lanza `Preparar-Operador.ps1`, que hace el resto: Azure CLI + extension ssh, permisos de la carpeta, guarda la clave solo para este usuario (y la borra de la configuracion y del historial de PowerShell), crea las herramientas externas de mRemoteNG e inicia sesion en Azure.
+Esa linea descarga este repositorio en `C:\Terminus\operador`, escribe `Operador.config.local.psd1` (fichero de datos, no ejecuta codigo: suscripcion, tenant y clave privada, codificados en base64 dentro de la propia linea) y lanza `Preparar-Operador.ps1`, que hace el resto: Azure CLI + extension ssh, permisos de la carpeta, guarda la clave solo para este usuario (y la borra de la configuracion y del historial de PowerShell), crea las herramientas externas de mRemoteNG e inicia sesion en Azure.
 
-Formato de `Operador.config.local.ps1` (por si se crea a mano):
+Formato de `Operador.config.local.psd1` (por si se crea a mano):
 
 ```powershell
-$OperadorLocal = @{
+@{
     SubscriptionId = '<guid de la suscripcion>'
     Tenant         = '<dominio del tenant>'
     UsuarioDefecto = '<usuario del tunel si el equipo no tiene etiqueta>'
@@ -57,7 +57,7 @@ Actualizar los scripts mas adelante: `C:\Terminus\operador\Actualizar-Operador.p
 | `Habilitar-Acceso.ps1` | Tras instalar un cliente: activa su acceso SSH en Azure (una vez por equipo). |
 | `Configurar-mRemoteNG.ps1` | Crea las herramientas externas Terminus-Abrir / Terminus-Cerrar. |
 | `Actualizar-Operador.ps1` | Baja la ultima version de los scripts (no toca configuracion ni clave). |
-| `Comun.ps1` | Configuracion comun; lee `Operador.config.local.ps1`. |
+| `Comun.ps1` | Configuracion comun; lee `Operador.config.local.psd1`. |
 
 ## Diagnostico
 
@@ -73,4 +73,7 @@ Errores tipicos: *No hay sesion de Azure* (hacer `az login --tenant ...` con la 
 - La clave privada solo la puede leer el usuario de Windows del operador. Nunca va en este repositorio.
 - Para entrar hacen falta las dos cosas: la clave **y** una cuenta de la empresa con MFA dentro del grupo de operadores. Sacar a alguien del grupo le quita el acceso a todos los clientes.
 - En el servidor, la clave solo vale para conexiones que llegan por Arc y solo permite redirigir al RDP.
+- El tunel escucha solo en `127.0.0.1` del PC del operador: otros equipos de la red no pueden usarlo.
 - Los nombres de equipo y usuario que llegan de mRemoteNG o de Azure se validan antes de usarlos en una orden.
+- La configuracion local es un fichero de datos (`.psd1`): se lee sin ejecutar codigo.
+- Cada apertura de tunel queda registrada en Azure con la cuenta de la persona.

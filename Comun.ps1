@@ -3,18 +3,19 @@
  Comun.ps1  -  Configuracion comun de los scripts de operador
 =====================================================================
  Valores genericos aqui. Los del entorno (suscripcion, tenant...) van
- en Operador.config.local.ps1, junto a los scripts, que NO esta en el
- repositorio. Lo crea el bloque de Bitwarden al instalar:
+ en Operador.config.local.psd1, junto a los scripts, que NO esta en el
+ repositorio. Es un fichero de DATOS (Import-PowerShellDataFile: no
+ ejecuta codigo). Lo crea la linea de instalacion de operador:
 
-   $OperadorLocal = @{
+   @{
        SubscriptionId = "<guid>"
        Tenant         = "<dominio o guid del tenant>"
        UsuarioDefecto = "<usuario del tunel si el equipo no tiene etiqueta>"
-       ClavePrivada   = @"
+       ClavePrivada   = @'
    -----BEGIN OPENSSH PRIVATE KEY-----
    ...
    -----END OPENSSH PRIVATE KEY-----
-   "@
+   '@
    }
 
  ClavePrivada solo se usa una vez: Preparar-Operador la guarda en
@@ -30,11 +31,14 @@ $Op = @{
     Clave          = Join-Path $PSScriptRoot "terminus_ed25519"
 }
 
-$OpConfigLocal = Join-Path $PSScriptRoot "Operador.config.local.ps1"
-if (Test-Path $OpConfigLocal) {
-    . $OpConfigLocal
-    if ($OperadorLocal) { foreach ($k in $OperadorLocal.Keys) { $Op[$k] = $OperadorLocal[$k] } }
-}
+# Config local: .psd1 (datos). Se acepta el .ps1 antiguo por compatibilidad;
+# Preparar-Operador lo convierte a .psd1.
+$OpConfigLocal    = Join-Path $PSScriptRoot "Operador.config.local.psd1"
+$OpConfigLocalAnt = Join-Path $PSScriptRoot "Operador.config.local.ps1"
+$OperadorLocal = $null
+if (Test-Path $OpConfigLocal) { $OperadorLocal = Import-PowerShellDataFile $OpConfigLocal }
+elseif (Test-Path $OpConfigLocalAnt) { . $OpConfigLocalAnt }
+if ($OperadorLocal) { foreach ($k in $OperadorLocal.Keys) { $Op[$k] = $OperadorLocal[$k] } }
 
 # Nombres que llegan de mRemoteNG o de etiquetas de Azure y acaban dentro
 # de una orden: solo caracteres seguros (evita inyeccion de comandos).
